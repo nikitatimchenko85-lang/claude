@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Реестр договоров</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #fff; --text: #1d2330; --muted: #6b7385;
+    --border: #e1e4ea; --accent: #2f6fde; --accent-text: #fff;
+    --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030; --neutral: #6b7385;
+    --row-hover: #f1f4fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151b; --surface: #1b1f27; --text: #e6e9ef; --muted: #98a0b0;
+      --border: #2c323d; --accent: #5b8ff0; --accent-text: #0d1117;
+      --ok: #4cc584; --warn: #e3b25a; --bad: #f07070; --neutral: #98a0b0;
+      --row-hover: #222833;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 20px 16px 8px; max-width: 1280px; margin: 0 auto;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  h1 { margin: 0; font-size: 22px; }
+  main { max-width: 1280px; margin: 0 auto; padding: 0 16px 40px; }
+  button, .btn { font: inherit; cursor: pointer; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); border-radius: 8px; padding: 7px 12px; }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.danger { color: var(--bad); }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filters { display: grid; gap: 10px; grid-template-columns: 2fr 1fr 1fr 1fr;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 12px 0; }
+  .filters label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 14px; min-width: 140px; }
+  .stat b { display: block; font-size: 18px; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td.wrap { white-space: normal; min-width: 180px; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; }
+  th[data-sort]:hover { color: var(--text); }
+  th .arrow { font-size: 10px; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px;
+    border: 1px solid currentColor; }
+  .s-active { color: var(--ok); } .s-expiring { color: var(--warn); }
+  .s-expired, .s-terminated { color: var(--bad); } .s-draft, .s-closed { color: var(--neutral); }
+  .muted { color: var(--muted); }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  mark { background: #ffe58a; color: inherit; border-radius: 2px; }
+  dialog { border: 1px solid var(--border); border-radius: 14px; padding: 0; width: min(680px, calc(100% - 32px));
+    background: var(--surface); color: var(--text); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog form { padding: 18px; }
+  dialog h2 { margin: 0 0 14px; font-size: 18px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid .full { grid-column: 1 / -1; }
+  .grid label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .dlg-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
+  .dlg-actions div { display: flex; gap: 8px; }
+  @media (max-width: 760px) {
+    .filters { grid-template-columns: 1fr 1fr; }
+    .filters .search { grid-column: 1 / -1; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Реестр договоров</h1>
+  <div class="actions">
+    <button class="primary" id="addBtn">+ Новый договор</button>
+    <button id="exportBtn">Экспорт CSV</button>
+    <label class="btn" for="importFile">Импорт CSV/JSON</label>
+    <input type="file" id="importFile" accept=".csv,.json" hidden>
+    <button id="backupBtn">Резервная копия (JSON)</button>
+  </div>
+</header>
+
+<main>
+  <section class="filters">
+    <div class="search">
+      <label for="q">Поиск (номер, клиент, ИНН, предмет, ответственный)</label>
+      <input id="q" type="search" placeholder="Например: Ромашка или 2026/15" autofocus>
+    </div>
+    <div>
+      <label for="fStatus">Статус</label>
+      <select id="fStatus">
+        <option value="">Все</option>
+        <option value="active">Действует</option>
+        <option value="expiring">Истекает (≤30 дней)</option>
+        <option value="expired">Истёк</option>
+        <option value="draft">Черновик</option>
+        <option value="closed">Исполнен</option>
+        <option value="terminated">Расторгнут</option>
+      </select>
+    </div>
+    <div>
+      <label for="fFrom">Дата договора с</label>
+      <input id="fFrom" type="date">
+    </div>
+    <div>
+      <label for="fTo">по</label>
+      <input id="fTo" type="date">
+    </div>
+  </section>
+
+  <section class="stats" id="stats"></section>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th data-sort="number">№ договора <span class="arrow"></span></th>
+          <th data-sort="date">Дата <span class="arrow"></span></th>
+          <th data-sort="client">Клиент <span class="arrow"></span></th>
+          <th data-sort="inn">ИНН <span class="arrow"></span></th>
+          <th data-sort="subject">Предмет <span class="arrow"></span></th>
+          <th data-sort="amount" class="num">Сумма, ₽ <span class="arrow"></span></th>
+          <th data-sort="endDate">Действует до <span class="arrow"></span></th>
+          <th data-sort="status">Статус <span class="arrow"></span></th>
+          <th data-sort="manager">Ответственный <span class="arrow"></span></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <h2 id="dlgTitle">Новый договор</h2>
+    <div class="grid">
+      <div><label for="f_number">№ договора *</label><input id="f_number" name="number" required></div>
+      <div><label for="f_date">Дата заключения *</label><input id="f_date" name="date" type="date" required></div>
+      <div><label for="f_client">Клиент *</label><input id="f_client" name="client" required list="clientList"></div>
+      <div><label for="f_inn">ИНН</label><input id="f_inn" name="inn" inputmode="numeric" pattern="\d{10}|\d{12}" title="10 или 12 цифр"></div>
+      <div class="full"><label for="f_subject">Предмет договора</label><input id="f_subject" name="subject"></div>
+      <div><label for="f_amount">Сумма, ₽</label><input id="f_amount" name="amount" type="number" min="0" step="0.01"></div>
+      <div><label for="f_endDate">Действует до</label><input id="f_endDate" name="endDate" type="date"></div>
+      <div><label for="f_state">Состояние</label>
+        <select id="f_state" name="state">
+          <option value="signed">Подписан</option>
+          <option value="draft">Черновик</option>
+          <option value="closed">Исполнен</option>
+          <option value="terminated">Расторгнут</option>
+        </select>
+      </div>
+      <div><label for="f_manager">Ответственный</label><input id="f_manager" name="manager" list="managerList"></div>
+      <div class="full"><label for="f_note">Примечание</label><textarea id="f_note" name="note" rows="3"></textarea></div>
+    </div>
+    <datalist id="clientList"></datalist>
+    <datalist id="managerList"></datalist>
+    <div class="dlg-actions">
+      <button type="button" class="danger" id="delBtn">Удалить</button>
+      <div>
+        <button type="button" id="cancelBtn">Отмена</button>
+        <button type="submit" class="primary">Сохранить</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const KEY = 'contracts-registry-v1';
+  const FIELDS = ['number','date','client','inn','subject','amount','endDate','state','manager','note'];
+  const CSV_HEADERS = ['№ договора','Дата','Клиент','ИНН','Предмет','Сумма','Действует до','Состояние','Ответственный','Примечание'];
+  const STATUS_LABEL = { active:'Действует', expiring:'Истекает', expired:'Истёк', draft:'Черновик', closed:'Исполнен', terminated:'Расторгнут' };
+  const STATE_LABEL = { signed:'Подписан', draft:'Черновик', closed:'Исполнен', terminated:'Расторгнут' };
+
+  const $ = id => document.getElementById(id);
+  let contracts = load();
+  let sort = { key: 'date', dir: -1 };
+  let editingId = null;
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(contracts)); }
+    catch { alert('Не удалось сохранить данные в браузере. Сделайте резервную копию.'); }
+  }
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  // Статус вычисляется из состояния и срока действия
+  function statusOf(c) {
+    if (c.state === 'draft' || c.state === 'closed' || c.state === 'terminated') return c.state;
+    if (!c.endDate) return 'active';
+    const days = (new Date(c.endDate) - new Date(today())) / 864e5;
+    if (days < 0) return 'expired';
+    if (days <= 30) return 'expiring';
+    return 'active';
+  }
+
+  const fmtDate = d => d ? d.split('-').reverse().join('.') : '';
+  const fmtMoney = n => (n === '' || n == null || isNaN(n)) ? '' :
+    Number(n).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  function hl(text, q) {
+    const s = esc(text);
+    if (!q) return s;
+    const re = new RegExp('(' + esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return s.replace(re, '<mark>$1</mark>');
+  }
+
+  function filtered() {
+    const q = $('q').value.trim().toLowerCase();
+    const st = $('fStatus').value, from = $('fFrom').value, to = $('fTo').value;
+    return contracts.filter(c => {
+      if (q && ![c.number, c.client, c.inn, c.subject, c.manager, c.note]
+        .some(v => String(v || '').toLowerCase().includes(q))) return false;
+      if (st && statusOf(c) !== st) return false;
+      if (from && (!c.date || c.date < from)) return false;
+      if (to && (!c.date || c.date > to)) return false;
+      return true;
+    }).sort((a, b) => {
+      const k = sort.key;
+      let va = k === 'status' ? STATUS_LABEL[statusOf(a)] : a[k];
+      let vb = k === 'status' ? STATUS_LABEL[statusOf(b)] : b[k];
+      if (k === 'amount') { va = Number(va) || 0; vb = Number(vb) || 0; return (va - vb) * sort.dir; }
+      return String(va || '').localeCompare(String(vb || ''), 'ru', { numeric: true }) * sort.dir;
+    });
+  }
+
+  function render() {
+    const list = filtered();
+    const q = $('q').value.trim();
+    $('rows').innerHTML = list.map(c => {
+      const s = statusOf(c);
+      return `<tr data-id="${c.id}">
+        <td><b>${hl(c.number, q)}</b></td>
+        <td>${fmtDate(c.date)}</td>
+        <td class="wrap">${hl(c.client, q)}</td>
+        <td>${hl(c.inn, q)}</td>
+        <td class="wrap">${hl(c.subject, q)}</td>
+        <td class="num">${fmtMoney(c.amount)}</td>
+        <td>${fmtDate(c.endDate) || '<span class="muted">—</span>'}</td>
+        <td><span class="badge s-${s}">${STATUS_LABEL[s]}</span></td>
+        <td>${hl(c.manager, q)}</td>
+      </tr>`;
+    }).join('');
+
+    const empty = $('empty');
+    empty.hidden = list.length > 0;
+    empty.textContent = contracts.length ? 'Ничего не найдено — измените условия поиска.'
+      : 'Договоров пока нет. Нажмите «+ Новый договор» или импортируйте CSV.';
+
+    const total = list.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+    const count = st => list.filter(c => statusOf(c) === st).length;
+    $('stats').innerHTML = [
+      [list.length + (list.length !== contracts.length ? ' из ' + contracts.length : ''), 'Договоров'],
+      [fmtMoney(total) + ' ₽', 'Общая сумма'],
+      [count('active'), 'Действуют'],
+      [count('expiring'), 'Истекают в 30 дней'],
+      [count('expired'), 'Истекли'],
+    ].map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
+
+    document.querySelectorAll('th[data-sort]').forEach(th => {
+      th.querySelector('.arrow').textContent = th.dataset.sort === sort.key ? (sort.dir > 0 ? '▲' : '▼') : '';
+    });
+
+    const uniq = k => [...new Set(contracts.map(c => c[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+    $('clientList').innerHTML = uniq('client').map(v => `<option value="${esc(v)}">`).join('');
+    $('managerList').innerHTML = uniq('manager').map(v => `<option value="${esc(v)}">`).join('');
+  }
+
+  function openDialog(c) {
+    editingId = c ? c.id : null;
+    $('dlgTitle').textContent = c ? 'Договор № ' + c.number : 'Новый договор';
+    $('delBtn').hidden = !c;
+    const data = c || { date: today(), state: 'signed' };
+    FIELDS.forEach(f => { $('f_' + f).value = data[f] ?? ''; });
+    if (!c) $('f_state').value = 'signed';
+    $('dlg').showModal();
+    $('f_number').focus();
+  }
+
+  $('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const data = {};
+    FIELDS.forEach(f => { data[f] = $('f_' + f).value.trim(); });
+    const dup = contracts.find(c => c.number.toLowerCase() === data.number.toLowerCase() && c.id !== editingId);
+    if (dup && !confirm(`Договор № ${data.number} уже есть (клиент: ${dup.client}). Всё равно сохранить?`)) return;
+    if (editingId) Object.assign(contracts.find(c => c.id === editingId), data);
+    else contracts.push({ id: uid(), ...data });
+    save(); render(); $('dlg').close();
+  });
+  $('cancelBtn').onclick = () => $('dlg').close();
+  $('delBtn').onclick = () => {
+    const c = contracts.find(c => c.id === editingId);
+    if (!confirm(`Удалить договор № ${c.number} (${c.client})?`)) return;
+    contracts = contracts.filter(x => x.id !== editingId);
+    save(); render(); $('dlg').close();
+  };
+  $('addBtn').onclick = () => openDialog(null);
+  $('rows').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-id]');
+    if (tr) openDialog(contracts.find(c => c.id === tr.dataset.id));
+  });
+  document.querySelectorAll('th[data-sort]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    sort = sort.key === k ? { key: k, dir: -sort.dir } : { key: k, dir: 1 };
+    render();
+  }));
+  ['q', 'fStatus', 'fFrom', 'fTo'].forEach(id => $(id).addEventListener('input', render));
+
+  // ---------- Экспорт / импорт ----------
+  function download(name, content, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([content], { type }));
+    a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const csvCell = v => /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+
+  $('exportBtn').onclick = () => {
+    const rows = filtered().map(c => FIELDS.map(f => {
+      if (f === 'date' || f === 'endDate') return fmtDate(c[f]);
+      if (f === 'state') return STATE_LABEL[c.state] || '';
+      if (f === 'amount') return c.amount ? String(c.amount).replace('.', ',') : '';
+      return String(c[f] ?? '');
+    }).map(csvCell).join(';'));
+    // BOM + «;» — чтобы Excel корректно открыл кириллицу
+    download(`договоры_${today()}.csv`, '﻿' + [CSV_HEADERS.join(';'), ...rows].join('\r\n'), 'text/csv;charset=utf-8');
+  };
+  $('backupBtn').onclick = () =>
+    download(`договоры_backup_${today()}.json`, JSON.stringify(contracts, null, 2), 'application/json');
+
+  function parseCSV(text) {
+    text = text.replace(/^﻿/, '');
+    const sep = (text.split('\n')[0].match(/;/g) || []).length >= (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+    const rows = []; let row = [], cell = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inQ) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (ch === '"') inQ = false;
+        else cell += ch;
+      } else if (ch === '"') inQ = true;
+      else if (ch === sep) { row.push(cell); cell = ''; }
+      else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+      else if (ch !== '\r') cell += ch;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(r => r.some(v => v.trim()));
+  }
+  const toISO = d => {
+    d = (d || '').trim();
+    const m = d.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : d;
+  };
+  const stateFrom = v => Object.keys(STATE_LABEL).find(k => k === v || STATE_LABEL[k].toLowerCase() === String(v).toLowerCase()) || 'signed';
+
+  $('importFile').addEventListener('change', async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    const text = await file.text();
+    let items;
+    try {
+      if (file.name.toLowerCase().endsWith('.json')) {
+        items = JSON.parse(text);
+        if (!Array.isArray(items)) throw new Error('ожидается массив');
+      } else {
+        const [, ...rows] = parseCSV(text);
+        items = rows.map(r => Object.fromEntries(FIELDS.map((f, i) => [f, (r[i] || '').trim()])));
+      }
+      items = items.filter(c => c.number || c.client).map(c => ({
+        ...c,
+        id: c.id || uid(),
+        date: toISO(c.date), endDate: toISO(c.endDate),
+        amount: c.amount ? String(c.amount).replace(/\s/g, '').replace(',', '.') : '',
+        state: stateFrom(c.state || 'signed'),
+      }));
+    } catch (err) { alert('Не удалось прочитать файл: ' + err.message); return; }
+    if (!items.length) { alert('В файле не найдено договоров.'); return; }
+    const replace = contracts.length && confirm(
+      `Найдено договоров: ${items.length}.\nОК — заменить текущий реестр, Отмена — добавить к существующим.`);
+    contracts = replace ? items : contracts.concat(items.filter(i => !contracts.some(c => c.id === i.id)));
+    save(); render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
